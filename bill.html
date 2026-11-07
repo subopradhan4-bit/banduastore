@@ -1,0 +1,141 @@
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Bill</title>
+
+<meta name="robots" content="noindex, nofollow">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+
+
+
+<style>body{font-family:system-ui;background:#f2f2f2;padding:10px}.c{background:#fff;max-width:480px;margin:auto;padding:18px;border-radius:14px}.r{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #ddd;font-size:14px;page-break-inside:avoid;break-inside:avoid}.gt{font-weight:900;font-size:17px;border-top:2px solid #000;margin-top:6px;padding-top:6px}.btn{width:100%;max-width:480px;margin:10px auto;display:block;padding:13px;border:none;border-radius:12px;font-weight:800}.p{background:#0a5c36;color:#fff}.h{background:#fff;border:1px solid #ccc}</style>
+
+</head>
+<body>
+
+
+<div id="successBox" style="display:none;max-width:480px;margin:0 auto 10px;background:#0a5c36;color:#fff;padding:14px;border-radius:14px;text-align:center"><div style="font-size:32px">✓</div><div style="font-size:20px;font-weight:900">Order Successfully Completed</div></div>
+
+
+<div class="c" id="b">Loading bill...</div>
+<button class="btn p" id="dl">📄 Download Bill PDF</button>
+<button class="btn h" onclick="location.href='index.html'">Home</button>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const firebaseConfig={apiKey:"AIzaSyBRZ86_UnSvgPBEImKCr1D4gDyZISvlf0U",authDomain:"subodh-dukan.firebaseapp.com",projectId:"subodh-dukan",storageBucket:"subodh-dukan.firebasestorage.app",messagingSenderId:"368451643879",appId:"1:368451643879:web:ee91ef9d797b480bd4b542"};
+const app=initializeApp(firebaseConfig); const db=getFirestore(app);
+
+
+
+let finalIdGlobal = '';
+let finalOrderGlobal = null;
+async function loadBill(){
+let id=new URLSearchParams(location.search).get('id');
+let d=null; try{d=JSON.parse(localStorage.getItem('lastOrder'))}catch(e){}
+if(id && (!d || d.orderId!==id)){
+  let q=query(collection(db,"orders"),where("orderId","==",id));
+  let snap=await getDocs(q);
+  if(!snap.empty) d=snap.docs[0].data();
+}
+if(!d){document.getElementById('b').innerHTML=`<h3>No Order Found: ${id||''}</h3><a href=index.html>Home</a>`; return;}
+
+document.getElementById('successBox').style.display='block';
+
+let finalId=d.orderId||id;
+finalIdGlobal = finalId;
+
+let itemMap = {};
+if(d.allMap){ itemMap = d.allMap; } else if(d.allItems && Array.isArray(d.allItems)){ d.allItems.forEach(p=>{ itemMap[p.id] = p; }); }
+
+
+
+function headerHtml(){
+ return `<div style=font-size:14px><b>Name- ${d.name}</b><br><b>Mobile no- <a href="tel:${d.mobile}" style="color:#0a5c36;text-decoration:none">📞 ${d.mobile}</a></b><br><b>Village- ${d.village}</b><br></div><hr>`;
+}
+let mainHead = `<h2 style=text-align:center;color:#0a5c36;margin:0>🛒 BANDUA PUJA STORE ORDER</h2><p style=text-align:center;font-size:12px>Date: ${d.time}<br><b>Order ID: ${finalId}</b><br>📞 Admin No: +${d.adminNo || '918618265898'}</b></p>`;
+
+let cartKeys = Object.keys(d.cart || {});
+const PER_PAGE = 25;
+let h = "";
+for(let pg=0; pg < (Math.ceil(cartKeys.length / PER_PAGE) || 1); pg++){
+  h += `<div style="${pg>0 ? 'page-break-before:always' : ''}">${pg==0 ? mainHead : ''}${headerHtml()}`;
+  cartKeys.slice(pg*PER_PAGE, (pg+1)*PER_PAGE).forEach(k=>{
+    let p=itemMap[k]; if(!p) return;
+    let amt=p.price*d.cart[k];
+    h += `<div class=r><span>🔹 ${p.name} x ₹${p.price} x ${d.cart[k]}</span><b>₹${amt}</b></div>`;
+  });
+  h += `</div>`;
+  if(pg==0 && cartKeys.length==0) break;
+}
+
+
+
+let shopLat = 22.615441;
+let shopLng = 85.934529;
+let dist = d.dist || 0;
+let distText = dist >= 1000 ? `${(dist/1000).toFixed(2)} KM` : `${Math.round(dist)} mtr`;
+
+
+let mapLink = `https://www.google.com/maps/dir/?api=1&origin=${shopLat},${shopLng}&destination=${d.lat},${d.lng}`;
+
+
+h+=`<div class=r><span>Total Item: ${Object.keys(d.cart || {}).length}</span></div>
+<div class=r><span>Total: ₹${d.total}</span><b>₹${d.total}</b></div>
+<!--
+<div class=r style="background:#e8f5e9;font-weight:700">
+<span> Distance : ${distText}</span></div>
+-->
+<div class=r><span>Delivery Charge: ₹${d.dCharge || 0}</span><b>₹${d.dCharge || 0}</b></div>
+<div class="r gt"><span>Grand Total: ₹${d.grand}</span><b>₹${d.grand}</b></div>
+<div style=font-size:13px;margin-top:8px><b>Delivery Time: ${d.deliveryTime || ''}</b></div>
+<p style=text-align:center>THANKS 🙏</p>
+<div style=font-size:11px;word-break:break-all;margin-top:8px>📍 <a href="${mapLink}" target="_blank" style="color:#fff;background:#0a5c36;padding:6px 12px;border-radius:6px;text-decoration:none;font-weight:900"> Distance from Bandua Puja Store - ${distText}</a></div>`;
+
+
+document.getElementById('b').innerHTML=h;
+finalOrderGlobal = d;
+}
+
+document.getElementById('dl').onclick = async () => {
+  if(!finalOrderGlobal){ alert('Bill load nahi hua'); return; }
+  const btn = document.getElementById('dl');
+  btn.textContent = '⏳ PDF Ban Raha Hai...';
+  
+  const billEl = document.getElementById('b');
+
+  const opt = {
+    margin: [0, 0, 10, 0],
+    filename: `BanduaPujaStore-${finalIdGlobal}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", scrollY: 0 },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['css','legacy'] }
+  };
+
+  // PDF banao
+
+  // PDF banao + Page No. lagao
+  html2pdf().set(opt).from(billEl).toPdf().get('pdf').then(function(pdf){
+    const total = pdf.internal.getNumberOfPages();
+    for(let i=1; i<=total; i++){
+      pdf.setPage(i);
+      pdf.setFontSize(9);
+      pdf.setTextColor(100);
+      pdf.text(`Page ${i} of ${total}`, 105, 290, {align:'center'});
+    }
+  }).save().then(()=>{
+    btn.textContent = '📄 Download Bill PDF';
+  });
+};
+
+loadBill();
+</script>
+</body>
+</html>
